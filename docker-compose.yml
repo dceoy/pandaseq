@@ -1,8 +1,8 @@
 version: '3'
 
 services:
-  pandaseq:
-    container_name: pandaseq
+  pandna:
+    container_name: pandna
     build:
       context: .
-    image: dceoy/pandaseq:latest
+    image: dceoy/pandna:latest

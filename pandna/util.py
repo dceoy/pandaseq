@@ -1,5 +1,5 @@
 #!/usr/bin/env python
 
 
-class PandaseqError(Exception):
+class PandnaError(Exception):
     pass

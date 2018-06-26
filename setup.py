@@ -1,11 +1,11 @@
 #!/usr/bin/env python
 
 from setuptools import setup, find_packages
-from pandaseq import __version__
+from pandna import __version__
 
 
 setup(
-    name='pandaseq',
+    name='pandna',
     version=__version__,
     description='Pandas-based Data Handlers for DNA-sequencing',
     packages=find_packages(),
@@ -28,7 +28,7 @@ setup(
         'Topic :: Scientific/Engineering :: Bio-Informatics'
     ],
     long_description="""\
-pandaseq
+pandna
 --------
 
 Pandas-based Data Handlers for DNA-sequencing

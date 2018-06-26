@@ -1,6 +1,6 @@
 FROM python:latest
 
-ADD . /tmp/pandaseq
+ADD . /tmp/pandna
 
 RUN set -e \
       && ln -sf /bin/bash /bin/sh
@@ -13,7 +13,7 @@ RUN set -e \
       && rm -rf /var/lib/apt/lists/*
 
 RUN set -e \
-      && pip install -U --no-cache-dir pip /tmp/pandaseq \
-      && rm -rf /tmp/pandaseq
+      && pip install -U --no-cache-dir pip /tmp/pandna \
+      && rm -rf /tmp/pandna
 
-ENTRYPOINT ["pandaseq"]
+ENTRYPOINT ["pandna"]

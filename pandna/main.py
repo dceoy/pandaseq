@@ -4,7 +4,7 @@ import io
 import os
 import logging
 import pandas as pd
-from . import PandaseqError
+from . import PandnaError
 
 
 class BaseDataFrame:
@@ -14,7 +14,7 @@ class BaseDataFrame:
         if os.path.isfile(path):
             logger.info('table file path: {}'.format(path))
         else:
-            raise PandaseqError('file not found: {}'.format(path))
+            raise PandnaError('file not found: {}'.format(path))
 
     def read_csv(self, **kwargs):
         self.df = pd.read_csv(self.path, **kwargs)
