@@ -79,7 +79,7 @@ class SamDataFrame(BaseDataFrame):
                 self._drop_na_cols()
 
     def _parse_sam_line(self, string):
-        if re.match('@[A-Z]{1}', string):
+        if re.match(r'@[A-Z]{1}', string):
             self.header.append(string)
         else:
             self.df = self.df.append(
