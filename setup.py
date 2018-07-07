@@ -16,6 +16,9 @@ setup(
     install_requires=[
         'pandas'
     ],
+    entry_points={
+        'console_scripts': ['pandna=pandna.main:main']
+    },
     classifiers=[
         'Development Status :: 3 - Alpha',
         'Environment :: Plugins',
