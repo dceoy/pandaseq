@@ -6,7 +6,7 @@ import logging
 import re
 import subprocess
 import pandas as pd
-from . import PandnaError
+from . import PandnaFileError, PandnaShellError
 
 
 class BaseDataFrame:
@@ -17,12 +17,12 @@ class BaseDataFrame:
         if os.path.isfile(path):
             self.logger.info('table file path: {}'.format(path))
         else:
-            raise PandnaError('file not found: {}'.format(path))
+            raise PandnaFileError('file not found: {}'.format(path))
         ext = os.path.splitext(self.path)[1]
         if supported_exts is None or ext in supported_exts:
             self.logger.info('file extension: {}'.format(ext))
         else:
-            raise PandnaError('unsupported file extension: {}'.format(ext))
+            raise PandnaFileError('unsupported file extension: {}'.format(ext))
 
     def load_csv(self, path, **kwargs):
         self.df = pd.read_csv(path, **kwargs)
@@ -71,7 +71,7 @@ class SamDataFrame(BaseDataFrame):
                 for s in iter(p.stdout.readline(), ''):
                     self._parse_sam_line(string=s)
             if p.returncode != 0:
-                raise PandnaError(
+                raise PandnaShellError(
                     'Subprocess \'{0}\' returned non-zero exit status '
                     '{1}.'.format(' '.join(p.args), p.returncode)
                 )
