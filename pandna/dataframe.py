@@ -1,32 +1,37 @@
 #!/usr/bin/env python
 
+from abc import ABCMeta, abstractmethod
 import io
 import os
 import logging
 import re
 import subprocess
 import pandas as pd
-from . import PandnaRuntimeError
+from .util import PandnaRuntimeError
 
 
-class BaseDataFrame(object):
+class BaseDF(object, metaclass=ABCMeta):
     def __init__(self, path, supported_exts=list()):
         if os.path.isfile(path):
             self.path = path
         else:
             raise PandnaRuntimeError('file not found: {}'.format(path))
         exts = [x for x in supported_exts if path.endswith(x)]
-        if exts:
+        if not supported_exts:
+            self.ext = None
+        elif exts:
             self.ext = exts[0]
         else:
             raise PandnaRuntimeError('invalid file extension: {}'.format(path))
         self.df = pd.DataFrame()
 
-    def load_csv(self, path, **kwargs):
-        self.df = pd.read_csv(path, **kwargs)
+    @abstractmethod
+    def load(self):
+        pass
 
-    def load_tsv(self, path, **kwargs):
-        self.df = pd.read_table(path, **kwargs)
+    def load_and_output_df(self):
+        self.load()
+        return self.df
 
     @staticmethod
     def drop_na_col(df, fixed_cols=[]):
@@ -37,7 +42,7 @@ class BaseDataFrame(object):
         )
 
 
-class SamDataFrame(BaseDataFrame):
+class SamDF(BaseDF):
     def __init__(self, path, samtools='samtools', n_thread=1,
                  max_n_opt_cols=20):
         super().__init__(path=path, supported_exts=['.sam', '.bam', '.cram'])
@@ -56,9 +61,8 @@ class SamDataFrame(BaseDataFrame):
             'QUAL': str, **{k: str for k in optional_cols}
         }
         self.header = []
-        self.df = pd.DataFrame([], columns=self.cols, dtype=self.col_dtypes)
 
-    def load_sam(self):
+    def load(self):
         if self.path.endswith('.sam'):
             with open(self.path, 'r') as f:
                 [self._load_sam_line(string=s) for s in f]
@@ -83,13 +87,34 @@ class SamDataFrame(BaseDataFrame):
         else:
             self.df = self.df.append(
                 pd.read_table(
-                    io.StringIO(string), header=None, columns=self.cols,
+                    io.StringIO(string), header=None, names=self.cols,
                     dtype=self.col_dtypes
                 )
             )
 
 
-class VcfDataFrame(BaseDataFrame):
+class SamtoolsFlagstatDF(BaseDF):
+    def __init__(self, path):
+        super().__init__(path=path)
+        self.cols = ['qc_passed', 'qc_failed', 'read']
+        self.col_dtypes = {'read': str, 'qc_passed': int, 'qc_failed': int}
+
+    def load(self):
+        with open(self.path, 'r') as f:
+            [self._load_samtools_flagstat_line(string=s) for s in f]
+
+    def _load_samtools_flagstat_line(self, string):
+        self.df = self.df.append(
+            pd.read_table(
+                io.StringIO(
+                    string.replace(' + ', '\t', 1).replace(' ', '\t', 1)
+                ),
+                header=None, names=self.cols, dtype=self.col_dtypes
+            )[['read', 'qc_passed', 'qc_failed']]
+        )
+
+
+class VcfDF(BaseDF):
     def __init__(self, path, bcftools='bcftools', n_thread=1,
                  max_n_opt_cols=20):
         super().__init__(path=path, supported_exts=['.vcf', '.vcf.gz', '.bcf'])
@@ -108,9 +133,8 @@ class VcfDataFrame(BaseDataFrame):
         }
         self.header = []
         self.samples = []
-        self.df = pd.DataFrame([], columns=self.cols, dtype=self.col_dtypes)
 
-    def load_vcf(self):
+    def load(self):
         if self.path.endswith('.vcf'):
             with open(self.path, 'r') as f:
                 [self._load_vcf_line(string=s) for s in f]
@@ -143,7 +167,7 @@ class VcfDataFrame(BaseDataFrame):
         else:
             self.df = self.df.append(
                 pd.read_table(
-                    io.StringIO(string), header=None, columns=self.cols,
+                    io.StringIO(string), header=None, names=self.cols,
                     dtype=self.col_dtypes
                 )
             )
