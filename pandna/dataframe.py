@@ -1,4 +1,7 @@
 #!/usr/bin/env python
+#
+# Pandas-based DataFrame Handlers for SAM and VCF in DNA-sequencing
+# https://github.com/dceoy/pandna/blob/master/pandna/dataframe.py
 
 from abc import ABCMeta, abstractmethod
 import io
@@ -7,7 +10,10 @@ import logging
 import re
 import subprocess
 import pandas as pd
-from .util import PandnaRuntimeError
+
+
+class PandnaRuntimeError(RuntimeError):
+    pass
 
 
 class BaseDF(object, metaclass=ABCMeta):

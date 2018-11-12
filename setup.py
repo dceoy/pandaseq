@@ -11,14 +11,9 @@ setup(
     packages=find_packages(),
     author='Daichi Narushima',
     author_email='dnarsil+github@gmail.com',
-    url='https://github.com/dceoy/fract',
+    url='https://github.com/dceoy/pandna',
     include_package_data=True,
-    install_requires=[
-        'pandas'
-    ],
-    entry_points={
-        'console_scripts': ['pandna=pandna.main:main']
-    },
+    install_requires=['pandas'],
     classifiers=[
         'Development Status :: 3 - Alpha',
         'Environment :: Plugins',
@@ -32,8 +27,8 @@ setup(
     ],
     long_description="""\
 pandna
---------
+------
 
-Pandas-based Data Handlers for DNA-sequencing
+Pandas-based DataFrame Handlers for SAM and VCF in DNA-sequencing
 """
 )

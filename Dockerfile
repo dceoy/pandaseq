@@ -1,5 +1,6 @@
 FROM dceoy/jupyter:latest
 
+ADD https://raw.githubusercontent.com/dceoy/print-github-tags/master/print-github-tags /usr/local/bin/print-github-tags
 ADD . /tmp/pandna
 
 RUN set -e \
@@ -13,9 +14,9 @@ RUN set -e \
       && rm -rf /var/lib/apt/lists/*
 
 RUN set -e \
-      && curl -sS https://github.com/samtools/htslib/releases/latest \
-        | sed -e 's/^.*"\(https:\/\/github.com\/[^\/]\+\/[^\/]\+\/\)releases\/tag\(\/[^"]\+\)".*$/\1archive\2\.tar\.gz/' \
-        | xargs -i wget -L {} -O /tmp/htslib.tar.gz \
+      && chmod +x /usr/local/bin/print-github-tags \
+      && print-github-tags --release --latest --tar samtools/htslib \
+        | xargs -i curl -SL {} -o /tmp/htslib.tar.gz \
       && tar xvf /tmp/htslib.tar.gz -C /usr/local/src --remove-files \
       && mv /usr/local/src/htslib-* /usr/local/src/htslib \
       && cd /usr/local/src/htslib \
@@ -26,9 +27,8 @@ RUN set -e \
       && make install
 
 RUN set -e \
-      && curl -sS https://github.com/samtools/samtools/releases/latest \
-        | sed -e 's/^.*"\(https:\/\/github.com\/[^\/]\+\/[^\/]\+\/\)releases\/tag\(\/[^"]\+\)".*$/\1archive\2\.tar\.gz/' \
-        | xargs -i wget -L {} -O /tmp/samtools.tar.gz \
+      && print-github-tags --release --latest --tar samtools/samtools \
+        | xargs -i curl -SL {} -o /tmp/samtools.tar.gz \
       && tar xvf /tmp/samtools.tar.gz -C /usr/local/src --remove-files \
       && mv /usr/local/src/samtools-* /usr/local/src/samtools \
       && cd /usr/local/src/samtools \
@@ -39,14 +39,8 @@ RUN set -e \
       && make install
 
 RUN set -e \
-      && curl -sS https://github.com/samtools/htslib/releases/latest \
-        | sed -e 's/^.*"\(https:\/\/github.com\/[^\/]\+\/[^\/]\+\/\)releases\/tag\(\/[^"]\+\)".*$/\1archive\2\.tar\.gz/' \
-        | xargs -i wget -L {} -O /tmp/htslib.tar.gz \
-      && tar xvf /tmp/htslib.tar.gz -C /usr/local/src --remove-files \
-      && mv /usr/local/src/htslib-* /usr/local/src/htslib \
-      && curl -sS https://github.com/samtools/bcftools/releases/latest \
-        | sed -e 's/^.*"\(https:\/\/github.com\/[^\/]\+\/[^\/]\+\/\)releases\/tag\(\/[^"]\+\)".*$/\1archive\2\.tar\.gz/' \
-        | xargs -i wget -L {} -O /tmp/bcftools.tar.gz \
+      && print-github-tags --release --latest --tar samtools/bcftools \
+        | xargs -i curl -SL {} -o /tmp/bcftools.tar.gz \
       && tar xvf /tmp/bcftools.tar.gz -C /usr/local/src --remove-files \
       && mv /usr/local/src/bcftools-* /usr/local/src/bcftools \
       && cd /usr/local/src/bcftools \
