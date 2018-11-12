@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 #
-# Pandas-based DataFrame Handlers for SAM and VCF in DNA-sequencing
-# https://github.com/dceoy/pandna/blob/master/pandna/dataframe.py
+# Pandas-based Data Frame Handlers DNA-sequencing
+# https://github.com/dceoy/pandna
 
 from abc import ABCMeta, abstractmethod
 import io
