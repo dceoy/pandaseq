@@ -17,7 +17,7 @@ class PandnaRuntimeError(RuntimeError):
 
 
 class BaseDF(object, metaclass=ABCMeta):
-    def __init__(self, path, supported_exts=list()):
+    def __init__(self, path, supported_exts=[]):
         if os.path.isfile(path):
             self.path = path
         else:
@@ -39,14 +39,6 @@ class BaseDF(object, metaclass=ABCMeta):
         self.load()
         return self.df
 
-    @staticmethod
-    def drop_na_col(df, fixed_cols=[]):
-        return pd.concat(
-            df[fixed_cols],
-            df[[c for c in df.columns if c not in fixed_cols]].dropna(axis=1),
-            axis=1
-        )
-
 
 class SamDF(BaseDF):
     def __init__(self, path, samtools='samtools', n_thread=1,
@@ -55,24 +47,26 @@ class SamDF(BaseDF):
         self.logger = logging.getLogger(__name__)
         self.samtools = samtools
         self.n_thread = n_thread
-        self.fixed_cols = [
+        fixed_cols = [
             'QNAME', 'FLAG', 'RNAME', 'POS', 'MAPQ', 'CIGAR', 'RNEXT', 'PNEXT',
             'TLEN', 'SEQ', 'QUAL'
         ]
         optional_cols = ['OPT{}'.format(i) for i in range(max_n_opt_cols)]
-        self.cols = [*self.fixed_cols, *optional_cols]
+        self.cols = fixed_cols + optional_cols
         self.col_dtypes = {
             'QNAME': str, 'FLAG': int, 'RNAME': str, 'POS': int, 'MAPQ': int,
             'CIGAR': str, 'RNEXT': str, 'PNEXT': int, 'TLEN': int, 'SEQ': str,
             'QUAL': str, **{k: str for k in optional_cols}
         }
         self.header = []
+        self.detected_cols = []
+        self.detected_col_dtypes = {}
 
     def load(self):
         if self.path.endswith('.sam'):
             with open(self.path, 'r') as f:
-                [self._load_sam_line(string=s) for s in f]
-            self.df = self.drop_na_col(self.df, fixed_cols=self.fixed_cols)
+                for s in f:
+                    self._load_sam_line(string=s)
         else:
             th_args = (['-@', str(self.n_thread)] if self.n_thread > 1 else [])
             args = [self.samtools, 'view', *th_args, '-h', self.path]
@@ -84,17 +78,21 @@ class SamDF(BaseDF):
                     'Subprocess \'{0}\' returned non-zero exit status '
                     '{1}.'.format(' '.join(p.args), p.returncode)
                 )
-            else:
-                self.df = self.drop_na_col(self.df, fixed_cols=self.fixed_cols)
 
     def _load_sam_line(self, string):
         if re.match(r'@[A-Z]{1}', string):
             self.header.append(string.strip())
         else:
+            if not self.detected_cols:
+                self.detected_cols = self.cols[:(string.count('\t') + 1)]
+                self.detected_col_dtypes = {
+                    k: v for k, v in self.col_dtypes.items()
+                    if k in self.detected_cols
+                }
             self.df = self.df.append(
                 pd.read_table(
-                    io.StringIO(string), header=None, names=self.cols,
-                    dtype=self.col_dtypes
+                    io.StringIO(string), header=None, names=self.detected_cols,
+                    dtype=self.detected_col_dtypes
                 )
             )
 
@@ -107,7 +105,8 @@ class SamtoolsFlagstatDF(BaseDF):
 
     def load(self):
         with open(self.path, 'r') as f:
-            [self._load_samtools_flagstat_line(string=s) for s in f]
+            for s in f:
+                self._load_samtools_flagstat_line(string=s)
 
     def _load_samtools_flagstat_line(self, string):
         self.df = self.df.append(
@@ -131,7 +130,7 @@ class VcfDF(BaseDF):
             'FORMAT'
         ]
         optional_cols = ['SAMPLE{}'.format(i) for i in range(max_n_opt_cols)]
-        self.cols = [*self.fixed_cols, *optional_cols]
+        self.cols = self.fixed_cols + optional_cols
         self.col_dtypes = {
             '#CHROM': str, 'POS': int, 'ID': str, 'REF': str, 'ALT': str,
             'QUAL': str, 'FILTER': str, 'INFO': str,
@@ -139,12 +138,14 @@ class VcfDF(BaseDF):
         }
         self.header = []
         self.samples = []
+        self.detected_cols = []
+        self.detected_col_dtypes = {}
 
     def load(self):
         if self.path.endswith('.vcf'):
             with open(self.path, 'r') as f:
-                [self._load_vcf_line(string=s) for s in f]
-            self.df = self.drop_na_col(self.df, fixed_cols=self.fixed_cols)
+                for s in f:
+                    self._load_vcf_line(string=s)
         else:
             th_args = (
                 ['--threads', str(self.n_thread)] if self.n_thread > 1 else []
@@ -158,22 +159,70 @@ class VcfDF(BaseDF):
                     'Subprocess \'{0}\' returned non-zero exit status '
                     '{1}.'.format(' '.join(p.args), p.returncode)
                 )
-            else:
-                self.df = self.drop_na_col(self.df, fixed_cols=self.fixed_cols)
 
     def _load_vcf_line(self, string):
         if string.startswith('##'):
             self.header.append(string.strip())
         elif string.startswith('#CHROM'):
             items = string.strip().split('\t')
-            if items == self.fixed_cols[:len(items)]:
+            if items[:len(self.fixed_cols)] == self.fixed_cols:
                 self.samples = [s for s in items if s not in self.fixed_cols]
+                self.detected_cols = self.cols[:len(items)]
+                self.detected_col_dtypes = {
+                    k: v for k, v in self.col_dtypes.items()
+                    if k in self.detected_cols
+                }
             else:
                 raise PandnaRuntimeError('invalid VCF columns')
         else:
             self.df = self.df.append(
                 pd.read_table(
-                    io.StringIO(string), header=None, names=self.cols,
-                    dtype=self.col_dtypes
+                    io.StringIO(string), header=None, names=self.detected_cols,
+                    dtype=self.detected_col_dtypes
+                )
+            )
+
+
+class BedDF(BaseDF):
+    def __init__(self, path, opt_cols=[]):
+        super().__init__(path=path, supported_exts=['.bed', '.txt', '.tsv'])
+        fixed_cols = ['chrom', 'chromStart', 'chromEnd']
+        optional_cols = opt_cols or [
+            'name', 'score', 'strand', 'thickStart', 'thickEnd', 'itemRgb',
+            'blockCount', 'blockSizes', 'blockStarts'
+        ]
+        self.cols = fixed_cols + optional_cols
+        default_col_dtypes = {
+            'chrom': str, 'chromStart': int, 'chromEnd': int, 'name': str,
+            'score': int, 'strand': str, 'thickStart': int, 'thickEnd': int,
+            'itemRgb': str, 'blockCount': int, 'blockSizes': int,
+            'blockStarts': int
+        }
+        self.col_dtypes = {
+            k: (default_col_dtypes.get(k) or str) for k in self.cols
+        }
+        self.header = []
+        self.detected_cols = []
+        self.detected_col_dtypes = {}
+
+    def load(self):
+        with open(self.path, 'r') as f:
+            for s in f:
+                self._load_bed_line(string=s)
+
+    def _load_bed_line(self, string):
+        if string.startswith(('browser', 'track')):
+            self.header.append(string.strip())
+        else:
+            if not self.detected_cols:
+                self.detected_cols = self.cols[:(string.count('\t') + 1)]
+                self.detected_col_dtypes = {
+                    k: v for k, v in self.col_dtypes.items()
+                    if k in self.detected_cols
+                }
+            self.df = self.df.append(
+                pd.read_table(
+                    io.StringIO(string), header=None, names=self.detected_cols,
+                    dtype=self.detected_col_dtypes
                 )
             )
