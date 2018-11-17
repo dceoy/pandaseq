@@ -39,24 +39,28 @@ class BaseBioDataFrame(object, metaclass=ABCMeta):
         self.load()
         return self.df
 
+    def write_df(self, path, mode='w', **kwargs):
+        if self.header:
+            with open(path, mode=mode) as f:
+                for h in self.header:
+                    f.write(h + os.linesep)
+        self.df.to_csv(path, mode=('a' if self.header else 'w'), **kwargs)
+
 
 class SamDataFrame(BaseBioDataFrame):
-    def __init__(self, path, samtools='samtools', n_thread=1,
-                 max_n_opt_cols=20):
+    def __init__(self, path, samtools='samtools', n_thread=1):
         super().__init__(path=path, supported_exts=['.sam', '.bam', '.cram'])
         self.logger = logging.getLogger(__name__)
         self.samtools = samtools
         self.n_thread = n_thread
-        fixed_cols = [
+        self.fixed_cols = [
             'QNAME', 'FLAG', 'RNAME', 'POS', 'MAPQ', 'CIGAR', 'RNEXT', 'PNEXT',
             'TLEN', 'SEQ', 'QUAL'
         ]
-        optional_cols = ['OPT{}'.format(i) for i in range(max_n_opt_cols)]
-        self.cols = fixed_cols + optional_cols
-        self.col_dtypes = {
+        self.fixed_col_dtypes = {
             'QNAME': str, 'FLAG': int, 'RNAME': str, 'POS': int, 'MAPQ': int,
             'CIGAR': str, 'RNEXT': str, 'PNEXT': int, 'TLEN': int, 'SEQ': str,
-            'QUAL': str, **{k: str for k in optional_cols}
+            'QUAL': str
         }
         self.header = []
         self.detected_cols = []
@@ -84,10 +88,17 @@ class SamDataFrame(BaseBioDataFrame):
             self.header.append(string.strip())
         else:
             if not self.detected_cols:
-                self.detected_cols = self.cols[:(string.count('\t') + 1)]
+                n_fixed_cols = len(self.fixed_cols)
+                n_detected_cols = string.count('\t') + 1
+                self.detected_cols = self.fixed_cols + (
+                    [
+                        'OPT{}'.format(i)
+                        for i in range(n_detected_cols - n_fixed_cols)
+                    ] if n_detected_cols > n_fixed_cols else []
+                )
                 self.detected_col_dtypes = {
-                    k: v for k, v in self.col_dtypes.items()
-                    if k in self.detected_cols
+                    k: (self.fixed_col_dtypes.get(k) or str)
+                    for k in self.detected_cols
                 }
             self.df = self.df.append(
                 pd.read_table(
@@ -120,8 +131,7 @@ class SamtoolsFlagstatDataFrame(BaseBioDataFrame):
 
 
 class VcfDataFrame(BaseBioDataFrame):
-    def __init__(self, path, bcftools='bcftools', n_thread=1,
-                 max_n_opt_cols=20):
+    def __init__(self, path, bcftools='bcftools', n_thread=1):
         super().__init__(path=path, supported_exts=['.vcf', '.vcf.gz', '.bcf'])
         self.bcftools = bcftools
         self.n_thread = n_thread
@@ -129,12 +139,9 @@ class VcfDataFrame(BaseBioDataFrame):
             '#CHROM', 'POS', 'ID', 'REF', 'ALT', 'QUAL', 'FILTER', 'INFO',
             'FORMAT'
         ]
-        optional_cols = ['SAMPLE{}'.format(i) for i in range(max_n_opt_cols)]
-        self.cols = self.fixed_cols + optional_cols
-        self.col_dtypes = {
+        self.fixed_col_dtypes = {
             '#CHROM': str, 'POS': int, 'ID': str, 'REF': str, 'ALT': str,
-            'QUAL': str, 'FILTER': str, 'INFO': str,
-            **{k: str for k in optional_cols}
+            'QUAL': str, 'FILTER': str, 'INFO': str
         }
         self.header = []
         self.samples = []
@@ -167,10 +174,17 @@ class VcfDataFrame(BaseBioDataFrame):
             items = string.strip().split('\t')
             if items[:len(self.fixed_cols)] == self.fixed_cols:
                 self.samples = [s for s in items if s not in self.fixed_cols]
-                self.detected_cols = self.cols[:len(items)]
+                n_fixed_cols = len(self.fixed_cols)
+                n_detected_cols = len(items)
+                self.detected_cols = self.fixed_cols + (
+                    [
+                        'SAMPLE{}'.format(i)
+                        for i in range(n_detected_cols - n_fixed_cols)
+                    ] if n_detected_cols > n_fixed_cols else []
+                )
                 self.detected_col_dtypes = {
-                    k: v for k, v in self.col_dtypes.items()
-                    if k in self.detected_cols
+                    k: (self.fixed_col_dtypes.get(k) or str)
+                    for k in self.detected_cols
                 }
             else:
                 raise BioDataFrameError('invalid VCF columns')
@@ -186,20 +200,16 @@ class VcfDataFrame(BaseBioDataFrame):
 class BedDataFrame(BaseBioDataFrame):
     def __init__(self, path, opt_cols=[]):
         super().__init__(path=path, supported_exts=['.bed', '.txt', '.tsv'])
-        fixed_cols = ['chrom', 'chromStart', 'chromEnd']
-        optional_cols = opt_cols or [
+        self.fixed_cols = ['chrom', 'chromStart', 'chromEnd']
+        self.opt_cols = opt_cols or [
             'name', 'score', 'strand', 'thickStart', 'thickEnd', 'itemRgb',
             'blockCount', 'blockSizes', 'blockStarts'
         ]
-        self.cols = fixed_cols + optional_cols
-        default_col_dtypes = {
+        self.fixed_col_dtypes = {
             'chrom': str, 'chromStart': int, 'chromEnd': int, 'name': str,
             'score': int, 'strand': str, 'thickStart': int, 'thickEnd': int,
             'itemRgb': str, 'blockCount': int, 'blockSizes': int,
             'blockStarts': int
-        }
-        self.col_dtypes = {
-            k: (default_col_dtypes.get(k) or str) for k in self.cols
         }
         self.header = []
         self.detected_cols = []
@@ -215,10 +225,12 @@ class BedDataFrame(BaseBioDataFrame):
             self.header.append(string.strip())
         else:
             if not self.detected_cols:
-                self.detected_cols = self.cols[:(string.count('\t') + 1)]
+                self.detected_cols = [
+                    *self.fixed_cols, *self.opt_cols
+                ][:(string.count('\t') + 1)]
                 self.detected_col_dtypes = {
-                    k: v for k, v in self.col_dtypes.items()
-                    if k in self.detected_cols
+                    k: (self.fixed_col_dtypes.get(k) or str)
+                    for k in self.detected_cols
                 }
             self.df = self.df.append(
                 pd.read_table(
