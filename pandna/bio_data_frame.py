@@ -12,23 +12,23 @@ import subprocess
 import pandas as pd
 
 
-class PandnaRuntimeError(RuntimeError):
+class BioDataFrameError(RuntimeError):
     pass
 
 
-class BaseDF(object, metaclass=ABCMeta):
+class BaseBioDataFrame(object, metaclass=ABCMeta):
     def __init__(self, path, supported_exts=[]):
         if os.path.isfile(path):
             self.path = path
         else:
-            raise PandnaRuntimeError('file not found: {}'.format(path))
+            raise BioDataFrameError('file not found: {}'.format(path))
         exts = [x for x in supported_exts if path.endswith(x)]
         if not supported_exts:
             self.ext = None
         elif exts:
             self.ext = exts[0]
         else:
-            raise PandnaRuntimeError('invalid file extension: {}'.format(path))
+            raise BioDataFrameError('invalid file extension: {}'.format(path))
         self.df = pd.DataFrame()
 
     @abstractmethod
@@ -40,7 +40,7 @@ class BaseDF(object, metaclass=ABCMeta):
         return self.df
 
 
-class SamDF(BaseDF):
+class SamDataFrame(BaseBioDataFrame):
     def __init__(self, path, samtools='samtools', n_thread=1,
                  max_n_opt_cols=20):
         super().__init__(path=path, supported_exts=['.sam', '.bam', '.cram'])
@@ -97,7 +97,7 @@ class SamDF(BaseDF):
             )
 
 
-class SamtoolsFlagstatDF(BaseDF):
+class SamtoolsFlagstatDataFrame(BaseBioDataFrame):
     def __init__(self, path):
         super().__init__(path=path)
         self.cols = ['qc_passed', 'qc_failed', 'read']
@@ -119,7 +119,7 @@ class SamtoolsFlagstatDF(BaseDF):
         )
 
 
-class VcfDF(BaseDF):
+class VcfDataFrame(BaseBioDataFrame):
     def __init__(self, path, bcftools='bcftools', n_thread=1,
                  max_n_opt_cols=20):
         super().__init__(path=path, supported_exts=['.vcf', '.vcf.gz', '.bcf'])
@@ -173,7 +173,7 @@ class VcfDF(BaseDF):
                     if k in self.detected_cols
                 }
             else:
-                raise PandnaRuntimeError('invalid VCF columns')
+                raise BioDataFrameError('invalid VCF columns')
         else:
             self.df = self.df.append(
                 pd.read_table(
@@ -183,7 +183,7 @@ class VcfDF(BaseDF):
             )
 
 
-class BedDF(BaseDF):
+class BedDataFrame(BaseBioDataFrame):
     def __init__(self, path, opt_cols=[]):
         super().__init__(path=path, supported_exts=['.bed', '.txt', '.tsv'])
         fixed_cols = ['chrom', 'chromStart', 'chromEnd']
