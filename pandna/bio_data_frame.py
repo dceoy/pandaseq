@@ -73,15 +73,14 @@ class SamDataFrame(BaseBioDataFrame):
                     self._load_sam_line(string=s)
         else:
             th_args = (['-@', str(self.n_thread)] if self.n_thread > 1 else [])
-            args = [self.samtools, 'view', *th_args, '-h', self.path]
-            with subprocess.Popen(args=args, stdout=subprocess.PIPE) as p:
-                for s in iter(p.stdout.readline(), ''):
-                    self._load_sam_line(string=s)
-            if p.returncode != 0:
-                raise subprocess.SubprocessError(
-                    'Subprocess \'{0}\' returned non-zero exit status '
-                    '{1}.'.format(' '.join(p.args), p.returncode)
-                )
+            sam_lines = [
+                s.decode('utf-8') for s in subprocess.run(
+                    args=[self.samtools, 'view', *th_args, '-h', self.path],
+                    stdout=subprocess.PIPE, check=True
+                ).stdout.splitlines() if s
+            ]
+            for l in sam_lines:
+                self._load_sam_line(string=l)
 
     def _load_sam_line(self, string):
         if re.match(r'@[A-Z]{1}', string):
@@ -157,15 +156,14 @@ class VcfDataFrame(BaseBioDataFrame):
             th_args = (
                 ['--threads', str(self.n_thread)] if self.n_thread > 1 else []
             )
-            args = [self.bcftools, 'view', *th_args, self.path]
-            with subprocess.Popen(args=args, stdout=subprocess.PIPE) as p:
-                for s in iter(p.stdout.readline(), ''):
-                    self._load_vcf_line(string=s)
-            if p.returncode != 0:
-                raise subprocess.SubprocessError(
-                    'Subprocess \'{0}\' returned non-zero exit status '
-                    '{1}.'.format(' '.join(p.args), p.returncode)
-                )
+            vcf_lines = [
+                s.decode('utf-8') for s in subprocess.run(
+                    args=[self.bcftools, 'view', *th_args, self.path],
+                    stdout=subprocess.PIPE, check=True
+                ).stdout.splitlines() if s
+            ]
+            for l in vcf_lines:
+                self._load_vcf_line(string=l)
 
     def _load_vcf_line(self, string):
         if string.startswith('##'):
