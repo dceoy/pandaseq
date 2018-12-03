@@ -5,6 +5,7 @@
 
 from abc import ABCMeta, abstractmethod
 import os
+import subprocess
 import pandas as pd
 
 
@@ -37,6 +38,20 @@ class BaseBioDataFrame(object, metaclass=ABCMeta):
                 for h in self.header:
                     f.write(h + os.linesep)
         self.df.to_csv(path, mode=('a' if self.header else 'w'), **kwargs)
+
+    @staticmethod
+    def run_and_parse_subprocess(args):
+        with subprocess.Popen(args=args, stdout=subprocess.PIPE,
+                              stderr=subprocess.PIPE) as p:
+            for line in p.stdout:
+                yield line.decode('utf-8')
+            if p.poll() == 0:
+                pass
+            else:
+                raise subprocess.CalledProcessError(
+                    returncode=p.returncode, cmd=p.args, output=p.stdout,
+                    stderr=p.stderr
+                )
 
 
 class BioDataFrameError(RuntimeError):

@@ -6,7 +6,6 @@
 import io
 import logging
 import re
-import subprocess
 import pandas as pd
 from .base_bio_data_frame import BaseBioDataFrame
 
@@ -38,19 +37,9 @@ class SamDataFrame(BaseBioDataFrame):
         else:
             th_args = (['-@', str(self.n_thread)] if self.n_thread > 1 else [])
             args = [self.samtools, 'view', *th_args, '-h', self.path]
-            with subprocess.Popen(args=args, stdout=subprocess.PIPE) as p:
-                while True:
-                    line = p.stdout.readline().decode('utf-8')
-                    if line:
-                        self._load_sam_line(string=line)
-                    elif p.poll() is not None:
-                        break
-                    else:
-                        pass
-                if p.returncode:
-                    raise subprocess.CalledProcessError(
-                        returncode=p.returncode, cmd=p.args, stderr=p.stderr
-                    )
+            for s in self.run_and_parse_subprocess(args=args):
+                self._load_sam_line(string=s)
+        self.df = self.df.reset_index(drop=True)
 
     def _load_sam_line(self, string):
         if re.match(r'@[A-Z]{1}', string):
@@ -87,6 +76,7 @@ class SamtoolsFlagstatDataFrame(BaseBioDataFrame):
         with open(self.path, 'r') as f:
             for s in f:
                 self._load_samtools_flagstat_line(string=s)
+        self.df = self.df.reset_index(drop=True)
 
     def _load_samtools_flagstat_line(self, string):
         self.df = self.df.append(

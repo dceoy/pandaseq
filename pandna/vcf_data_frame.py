@@ -4,7 +4,6 @@
 # https://github.com/dceoy/pandna
 
 import io
-import subprocess
 import pandas as pd
 from .base_bio_data_frame import BaseBioDataFrame, BioDataFrameError
 
@@ -37,19 +36,9 @@ class VcfDataFrame(BaseBioDataFrame):
                 ['--threads', str(self.n_thread)] if self.n_thread > 1 else []
             )
             args = [self.bcftools, 'view', *th_args, self.path]
-            with subprocess.Popen(args=args, stdout=subprocess.PIPE) as p:
-                while True:
-                    line = p.stdout.readline().decode('utf-8')
-                    if line:
-                        self._load_vcf_line(string=line)
-                    elif p.poll() is not None:
-                        break
-                    else:
-                        pass
-                if p.returncode:
-                    raise subprocess.CalledProcessError(
-                        returncode=p.returncode, cmd=p.args, stderr=p.stderr
-                    )
+            for s in self.run_and_parse_subprocess(args=args):
+                self._load_vcf_line(string=s)
+        self.df = self.df.reset_index(drop=True)
 
     def _load_vcf_line(self, string):
         if string.startswith('##'):

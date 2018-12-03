@@ -30,6 +30,7 @@ class BedDataFrame(BaseBioDataFrame):
         with open(self.path, 'r') as f:
             for s in f:
                 self._load_bed_line(string=s)
+        self.df = self.df.reset_index(drop=True)
 
     def _load_bed_line(self, string):
         if string.startswith(('browser', 'track')):
