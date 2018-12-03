@@ -73,14 +73,20 @@ class SamDataFrame(BaseBioDataFrame):
                     self._load_sam_line(string=s)
         else:
             th_args = (['-@', str(self.n_thread)] if self.n_thread > 1 else [])
-            sam_lines = [
-                s.decode('utf-8') for s in subprocess.run(
-                    args=[self.samtools, 'view', *th_args, '-h', self.path],
-                    stdout=subprocess.PIPE, check=True
-                ).stdout.splitlines() if s
-            ]
-            for l in sam_lines:
-                self._load_sam_line(string=l)
+            args = [self.samtools, 'view', *th_args, '-h', self.path]
+            with subprocess.Popen(args=args, stdout=subprocess.PIPE) as p:
+                while True:
+                    line = p.stdout.readline().decode('utf-8')
+                    if line:
+                        self._load_sam_line(string=line)
+                    elif p.poll() is not None:
+                        break
+                    else:
+                        pass
+                if p.returncode:
+                    raise subprocess.CalledProcessError(
+                        returncode=p.returncode, cmd=p.args, stderr=p.stderr
+                    )
 
     def _load_sam_line(self, string):
         if re.match(r'@[A-Z]{1}', string):
@@ -156,14 +162,20 @@ class VcfDataFrame(BaseBioDataFrame):
             th_args = (
                 ['--threads', str(self.n_thread)] if self.n_thread > 1 else []
             )
-            vcf_lines = [
-                s.decode('utf-8') for s in subprocess.run(
-                    args=[self.bcftools, 'view', *th_args, self.path],
-                    stdout=subprocess.PIPE, check=True
-                ).stdout.splitlines() if s
-            ]
-            for l in vcf_lines:
-                self._load_vcf_line(string=l)
+            args = [self.bcftools, 'view', *th_args, self.path]
+            with subprocess.Popen(args=args, stdout=subprocess.PIPE) as p:
+                while True:
+                    line = p.stdout.readline().decode('utf-8')
+                    if line:
+                        self._load_vcf_line(string=line)
+                    elif p.poll() is not None:
+                        break
+                    else:
+                        pass
+                if p.returncode:
+                    raise subprocess.CalledProcessError(
+                        returncode=p.returncode, cmd=p.args, stderr=p.stderr
+                    )
 
     def _load_vcf_line(self, string):
         if string.startswith('##'):
