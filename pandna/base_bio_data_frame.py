@@ -15,12 +15,8 @@ class BaseBioDataFrame(object, metaclass=ABCMeta):
             self.path = path
         else:
             raise BioDataFrameError('file not found: {}'.format(path))
-        exts = [x for x in supported_exts if path.endswith(x)]
-        if not supported_exts:
-            self.ext = None
-        elif exts:
-            self.ext = exts[0]
-        else:
+        hit_exts = [x for x in supported_exts if path.endswith(x)]
+        if supported_exts and not hit_exts:
             raise BioDataFrameError('invalid file extension: {}'.format(path))
         self.df = pd.DataFrame()
 
@@ -40,17 +36,17 @@ class BaseBioDataFrame(object, metaclass=ABCMeta):
         self.df.to_csv(path, mode=('a' if self.header else 'w'), **kwargs)
 
     @staticmethod
-    def run_and_parse_subprocess(args):
-        with subprocess.Popen(args=args, stdout=subprocess.PIPE,
-                              stderr=subprocess.PIPE) as p:
+    def run_and_parse_subprocess(args, stdout=subprocess.PIPE, **kwargs):
+        with subprocess.Popen(args=args, stdout=stdout, **kwargs) as p:
             for line in p.stdout:
                 yield line.decode('utf-8')
-            if p.poll() == 0:
+            outs, errs = p.communicate()
+            if p.returncode == 0:
                 pass
             else:
                 raise subprocess.CalledProcessError(
-                    returncode=p.returncode, cmd=p.args, output=p.stdout,
-                    stderr=p.stderr
+                    returncode=p.returncode, cmd=p.args, output=outs,
+                    stderr=errs
                 )
 
 
